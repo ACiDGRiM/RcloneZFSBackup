@@ -1,0 +1,11 @@
+#Each ZFS volume should have it's own cron schedule. Uploads will run in parallel.
+
+#Run every day at 00:00
+0 0 */1 * * root /root/zfs-send-rclone servername zfs_poolname volumename1 daily
+0 0 */1 * * root /root/zfs-send-rclone servername zfs_poolname volumename2 daily
+#Run the first day of every month at 00:00
+0 0 1 */1 * root /root/zfs-send-rclone servername zfs_poolname volumename1 monthly
+0 0 1 */1 * root /root/zfs-send-rclone servername zfs_poolname volumename2 monthly
+#Run January 1 every year at 00:00
+0 0 1 1 * root /root/zfs-send-rclone servername zfs_poolname volumename1 yearly
+0 0 1 1 * root /root/zfs-send-rclone servername zfs_poolname volumename2 yearly
