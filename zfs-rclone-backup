@@ -1,0 +1,38 @@
+#!/bin/bash
+
+volume=$3
+server=$1
+pool=$2
+frequency=$4
+
+lastsnap=$(zfs holds `zfs list $pool/$volume -t snapshot -o name -s creation` 2>/dev/null | grep backup-rclone-$frequency | awk '{printf $1}' | tail -n 1)
+	if [ -z $lastsnap ]; then
+	  lastsnap=$(zfs holds `zfs list $pool/$volume -t snapshot -o name -s creation` 2>/dev/null | grep backup-rclone-monthly | awk '{printf $1}' | tail -n 1)
+	  zfs hold backup-rclone-$frequency $lastsnap
+	fi
+
+	if [ -x $lastsnap ]; then
+	  lastsnap=$(zfs holds `zfs list $pool/$volume -t snapshot -o name -s creation` 2>/dev/null | grep backup-rclone-yearly | awk '{printf $1}' | tail -n 1)
+	  zfs hold backup-rclone-$frequency $lastsnap
+	fi
+
+	if [ -x $lastsnap ]; then
+	  lastsnap=$(zfs list -t snapshot $pool/$volume -o name -s creation | tail -n1)
+	  zfs hold backup-rclone-$frequency $lastsnap
+	fi
+
+newsnap=$(zfs list -t snapshot $pool/$volume -o name -s creation | grep $frequency | tail -n1)
+	if [ -z $newsnap ]; then
+	  newsnap=$(zfs list -t snapshot $pool/$volume -o name -s creation | tail -n1)
+	  zfs hold backup-rclone-$frequency $lastsnap
+	fi
+
+zfs hold backup-rclone-$frequency $newsnap
+zfs send -c -w -v -i $lastsnap $newsnap 2>/root/zfssend-$volume.log | rclone --config=/etc/rclone.conf --log-file=/root/rclonezfs-$volume.log rcat server-backup-crypt:zfs/$server/$pool/$volume/$newsnap-$frequency
+
+if [ $? == 0 ]; then
+  zfs list -t snapshot $pool/$volume -o name -S creation | grep $frequency | tail -n 2 | head -n 1 | awk '{printf $1}) | xargs xfs release backup-rclone-$frequency
+  if [ $frequency = "monthly" ]; then
+    zfs list -t snapshot $pool/$volume -o name -S creation | grep daily | awk '{printf $1}) | xargs xfs release backup-rclone-daily
+  fi
+fi
